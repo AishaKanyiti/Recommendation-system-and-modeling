@@ -1,0 +1,7 @@
+streamlit
+numpy
+pandas
+polars
+scipy
+implicit
+scikit-learn
