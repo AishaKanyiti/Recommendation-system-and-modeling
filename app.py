@@ -1,46 +1,50 @@
-# -*- coding: utf-8 -*-
-"""
-app.py
-
-Streamlit app for Recommendation System
-"""
+# --- app.py : Recommender System Streamlit App ---
 
 import streamlit as st
-import numpy as np
 import pickle
 import scipy.sparse as sp
 import polars as pl
 import os
 
-# --- Paths ---
-BASE_PATH = os.path.dirname(__file__)  # folder where app.py is located
+# --- Setup Paths ---
+BASE_PATH = os.getcwd()  # works for Streamlit Cloud and local
+st.write("📂 Files in current folder:", os.listdir(BASE_PATH))  # Debugging check
 
-# --- Load Data & Models ---
-@st.cache_resource
-def load_model():
-    with open(os.path.join(BASE_PATH, "als_model.pkl"), "rb") as f:
-        als = pickle.load(f)
-    return als
-
+# --- Load Data & Model ---
 @st.cache_resource
 def load_data():
+    # Load sparse user-item matrix
     UI_csr = sp.load_npz(os.path.join(BASE_PATH, "UI_csr.npz"))
 
+    # Load user mappings
     with open(os.path.join(BASE_PATH, "user_mappings.pkl"), "rb") as f:
         user_id_to_idx, idx_to_user_id = pickle.load(f)
 
+    # Load item mappings
     with open(os.path.join(BASE_PATH, "item_mappings.pkl"), "rb") as f:
         item_id_to_idx, idx_to_item_id = pickle.load(f)
 
     return UI_csr, user_id_to_idx, idx_to_user_id, item_id_to_idx, idx_to_item_id
 
 
-als = load_model()
+@st.cache_resource
+def load_model():
+    with open(os.path.join(BASE_PATH, "als_model.pkl"), "rb") as f:
+        als = pickle.load(f)
+    return als
+
+
 UI_csr, user_id_to_idx, idx_to_user_id, item_id_to_idx, idx_to_item_id = load_data()
+als = load_model()
+
+st.success("✅ Model, data, and mappings loaded successfully!")
+
 
 # --- Recommend Function ---
 def recommend_cf(user_raw_id, N=10):
+    """Generate top-N recommendations for a given user ID"""
     if user_raw_id not in user_id_to_idx:
+        st.warning(f"⚠️ User {user_raw_id} not found in mappings.")
         return pl.DataFrame({"itemid": [], "score": []})
 
     uidx = user_id_to_idx[user_raw_id]
@@ -48,39 +52,28 @@ def recommend_cf(user_raw_id, N=10):
     try:
         ids, scores = als.recommend(uidx, UI_csr[uidx], N=N, recalculate_user=True)
     except IndexError:
+        st.warning("⚠️ No recommendations found (IndexError).")
         return pl.DataFrame({"itemid": [], "score": []})
 
-    return pl.DataFrame({
+    recs = pl.DataFrame({
         "itemid": [idx_to_item_id[i] for i in ids],
         "score": scores
     })
+    return recs
+
 
 # --- Streamlit UI ---
-st.title("📊 Personalized Recommendation System")
-st.markdown("Select a **User ID** to get top-N recommendations.")
+st.title("🎯 Recommendation System")
 
-# Dropdown with searchable user IDs
-user_ids = sorted(user_id_to_idx.keys())
-user_input = st.selectbox("🔎 Choose User ID:", options=user_ids, index=0)
-
-# Slider for number of recs
-top_n = st.slider("Number of Recommendations:", 1, 20, 10)
+user_input = st.text_input("Enter a User ID to get recommendations:")
 
 if st.button("Get Recommendations"):
-    try:
-        user_id = int(user_input)
-        recs = recommend_cf(user_id, N=top_n)
-
-        if recs.is_empty():
-            st.warning("⚠️ No recommendations found for this user.")
-        else:
-            st.success(f"Top {top_n} recommendations for User {user_id}:")
+    if user_input.strip():
+        recs = recommend_cf(user_input.strip(), N=10)
+        if recs.shape[0] > 0:
+            st.write("Top Recommendations:")
             st.dataframe(recs)
-
-    except Exception as e:
-        st.error(f"❌ Error: {e}")
-
-
-import os
-st.write("Files in current folder:", os.listdir(BASE_PATH))
-
+        else:
+            st.write("No recommendations found for this user.")
+    else:
+        st.warning("⚠️ Please enter a valid User ID.")
