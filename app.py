@@ -79,3 +79,8 @@ if st.button("Get Recommendations"):
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
+
+
+import os
+st.write("Files in current folder:", os.listdir(BASE_PATH))
+
