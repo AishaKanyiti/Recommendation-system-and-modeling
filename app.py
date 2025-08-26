@@ -8,7 +8,6 @@ import os
 
 # --- Setup Paths ---
 BASE_PATH = os.getcwd()  # works for Streamlit Cloud and local
-st.write("📂 Files in current folder:", os.listdir(BASE_PATH))  # Debugging check
 
 # --- Load Data & Model ---
 @st.cache_resource
@@ -65,15 +64,16 @@ def recommend_cf(user_raw_id, N=10):
 # --- Streamlit UI ---
 st.title("🎯 Recommendation System")
 
-user_input = st.text_input("Enter a User ID to get recommendations:")
+# ✅ Dropdown instead of free text input
+user_input = st.selectbox(
+    "Select a User ID:",
+    options=list(user_id_to_idx.keys())  # shows actual user IDs from mappings
+)
 
 if st.button("Get Recommendations"):
-    if user_input.strip():
-        recs = recommend_cf(user_input.strip(), N=10)
-        if recs.shape[0] > 0:
-            st.write("Top Recommendations:")
-            st.dataframe(recs)
-        else:
-            st.write("No recommendations found for this user.")
+    recs = recommend_cf(user_input, N=10)
+    if recs.shape[0] > 0:
+        st.write("Top Recommendations:")
+        st.dataframe(recs)
     else:
-        st.warning("⚠️ Please enter a valid User ID.")
+        st.write("No recommendations found for this user.")
